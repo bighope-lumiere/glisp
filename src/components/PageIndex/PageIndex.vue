@@ -45,7 +45,8 @@
 				<ViewHandles
 					ref="elHandles"
 					class="PageIndex__view-handles"
-					:exp="activeExp"
+					:activeExp="activeExp"
+					:selectedexp="selectedExp"
 					:viewTransform.sync="viewHandlesTransform"
 					@tag-history="tagExpHistory('undo')"
 				/>

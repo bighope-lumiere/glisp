@@ -97,6 +97,7 @@ import {
 	isVector,
 	getEvaluated,
 	malEquals,
+	MalNode,
 } from '@/mal/types'
 import {mat2d, vec2} from 'gl-matrix'
 import {getSVGPathData, getSVGPathDataRecursive} from '@/path-utils'
@@ -127,15 +128,19 @@ import {convertMalNodeToJSObject} from '@/mal/reader'
 import useHandle from './use-handle'
 
 interface Props {
-	exp: NonReactive<MalSeq> | null
+	activeExp: NonReactive<MalSeq> | null
+	selectedExp: NonReactive<MalNode>[]
 	viewTransform: mat2d
 }
 
 export default defineComponent({
 	props: {
-		exp: {
+		activeExp: {
 			required: true,
 			// validator: v => v instanceof NonReactive,
+		},
+		selectedExp: {
+			required: true,
 		},
 		viewTransform: {
 			type: Float32Array,
@@ -150,7 +155,7 @@ export default defineComponent({
 		)
 
 		const handleData = useHandle(
-			toRef(props, 'exp'),
+			toRef(props, 'activeExp'),
 			toRef(props, 'viewTransform'),
 			el,
 			context

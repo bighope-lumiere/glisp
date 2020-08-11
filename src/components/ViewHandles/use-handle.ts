@@ -65,79 +65,73 @@ const POINTABLE_HANDLE_TYPES = new Set(['translate', 'arrow', 'dia', 'point'])
 interface HandleData {
 	draggingIndex: number | null
 	rawPrevPos: number[]
-	fnInfo: FnInfoType | null
-	handleCallbacks: MalMap | null
-	params: MalVal[]
-	unevaluatedParams: MalVal[]
-	returnedValue: MalVal
-	selectedPath: string | null
-	transform: mat2d
-	transformInv: mat2d
-	transformStyle: string
-	handles: Handle[]
+	fnInfo: FnInfoType[]
+	handleCallbacks: (MalMap | null)[]
+	params: MalVal[][]
+	unevaluatedParams: MalVal[][]
+	returnedValue: MalVal[]
+	transform: mat2d[]
+	transformInv: mat2d[]
+	transformStyle: string[]
+	selectedPath: string[]
+	handles: Handle[][]
 }
 
 export default function useHandle(
-	exp: Ref<NonReactive<MalSeq> | null>,
+	selectedExp: Ref<NonReactive<MalSeq>[]>,
 	viewTransform: Ref<mat2d>,
-	el: Ref<HTMLElement | null>,
+	viewEl: Ref<HTMLElement | null>,
 	context: SetupContext
 ) {
 	const data = reactive({
 		draggingIndex: null,
 		rawPrevPos: [0, 0],
-		fnInfo: computed(() => {
-			return exp.value ? getFnInfo(exp.value.value) : null
-		}),
-		handleCallbacks: computed(() => {
-			if (data.fnInfo) {
-				const ret = getMapValue(data.fnInfo.meta, 'handles')
+		fnInfo: computed(() => selectedExp.value.map(e => getFnInfo(e.value))),
+		handleCallbacks: computed(() =>
+			data.fnInfo.map(fi => {
+				const ret = getMapValue(fi.meta, 'handles')
 				return isMap(ret) ? ret : null
-			} else {
-				return null
-			}
-		}),
-		params: computed(() => {
-			if (!exp.value || !data.handleCallbacks) return []
+			})
+		),
+		params: computed(() =>
+			data.fnInfo.map((fi, i) => {
+				const e = selectedExp.value[i].value
+				return fi.structType
+					? [getEvaluated(e)]
+					: e.slice(1).map(e => getEvaluated(e))
+			})
+		),
+		unevaluatedParams: computed(() =>
+			data.fnInfo.map((fi, i) => {
+				const e = selectedExp.value[i].value
+				return fi.structType ? [e] : e.slice(1)
+			})
+		),
+		returnedValue: computed(() =>
+			selectedExp.value.map(e => getEvaluated(e.value))
+		),
+		transform: computed(() =>
+			selectedExp.value.map((e, i) => {
+				const xform = computeExpTransform(e.value)
 
-			const expValue = exp.value.value
-			if (data.fnInfo?.structType) {
-				return [getEvaluated(expValue)]
-			} else {
-				return expValue.slice(1).map(e => getEvaluated(e)) || []
-			}
-		}),
-		unevaluatedParams: computed(() => {
-			if (!exp.value || !data.handleCallbacks) return []
+				// pre-multiplies with viewTransform
+				mat2d.multiply(xform, viewTransform.value as mat2d, xform)
 
-			const expValue = exp.value.value
-			if (data.fnInfo?.structType) {
-				return [expValue]
-			} else {
-				return expValue.slice(1)
-			}
-		}),
-		returnedValue: computed(() => {
-			return exp.value ? getEvaluated(exp.value.value) : null
-		}),
-		transform: computed(() => {
-			if (!exp.value) return viewTransform.value
-
-			const xform = computeExpTransform(exp.value.value)
-
-			// pre-multiplies with viewTransform
-			mat2d.multiply(xform, viewTransform.value as mat2d, xform)
-
-			return xform
-		}),
-		transformInv: computed(() => mat2d.invert(mat2d.create(), data.transform)),
+				return xform
+			})
+		),
+		transformInv: computed(() =>
+			data.transform.map(xform => mat2d.invert(mat2d.create(), xform))
+		),
+		transformStyle: computed(() =>
+			data.transform.map(xform => `matrix(${xform.join(',')})`)
+		),
 		selectedPath: computed(() => {
 			if (!exp.value) return ''
 
 			const evaluated = getEvaluated(exp.value.value)
 			return getSVGPathDataRecursive(evaluated)
 		}),
-		transformStyle: computed(() => `matrix(${data.transform.join(',')})`),
 		handles: computed(() => {
 			if (!data.handleCallbacks) return []
 
@@ -234,10 +228,10 @@ export default function useHandle(
 	}) as HandleData
 
 	function onMousedown(i: number, e: MouseEvent) {
-		if (!el.value) return
+		if (!viewEl.value) return
 
 		data.draggingIndex = i
-		const {left, top} = el.value.getBoundingClientRect()
+		const {left, top} = viewEl.value.getBoundingClientRect()
 		data.rawPrevPos = [e.clientX - left, e.clientY - top]
 
 		window.addEventListener('mousemove', onMousedrag)
@@ -249,7 +243,7 @@ export default function useHandle(
 			!exp.value ||
 			!data.handleCallbacks ||
 			data.draggingIndex === null ||
-			!el.value
+			!viewEl.value
 		) {
 			return
 		}
@@ -260,7 +254,7 @@ export default function useHandle(
 			return
 		}
 
-		const viewRect = el.value.getBoundingClientRect()
+		const viewRect = viewEl.value.getBoundingClientRect()
 		const rawPos = [e.clientX - viewRect.left, e.clientY - viewRect.top]
 
 		const pos = [0, 0]
